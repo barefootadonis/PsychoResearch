@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PsychoResearch</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <h1> Psycho<span>Research</span></h1>
+            <a href="#" class="account"> Sign In/ Create Account </a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="page-intro">
+            <h2>Where psychology meets computing</h2>
+            <p>Discover research on how technology helps us understand human behaviour.</p>
+        </div>
+
+        <form id="search-form">
+            <input id="search-input" type="search" aria-label="Search research" placeholder="Search research">
+            <button type="submit">Search</button>
+        </form>
+        <section id="results" aria-label="Research results"></section>
+        <nav id="pagination" aria-label="Research results pages"></nav>
+    </main>
+
+    <script>
+        const form = document.querySelector("#search-form");
+        const input = document.querySelector("#search-input");
+        const results = document.querySelector("#results");
+        const pagination = document.querySelector("#pagination");
+
+        const pageSize = 10;
+        let currentQuery = "psychoinformatics";
+        let latestRequest = 0;
+
+        function renderPagination(currentPage, totalPages) {
+            pagination.replaceChildren();
+
+            if (totalPages <= 1) return;
+
+            function addButton(label, page) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = label;
+
+                if (page === currentPage) {
+                    button.setAttribute("aria-current", "page");
+                }
+
+                button.addEventListener("click", () => {
+                    loadPapers(page);
+                });
+
+                pagination.append(button);
+            }
+
+            // Show all page numbers for short lists.
+            if (totalPages <= 6) {
+                for (let page = 1; page <= totalPages; page++) {
+                    addButton(page, page);
+                }
+                return;
+            }
+
+            // For longer lists, show the ends and the pages around the current page.
+            if (currentPage > 1) addButton("Previous", currentPage - 1);
+
+            const pages = [...new Set([
+                1, currentPage - 1, currentPage, currentPage + 1, totalPages
+            ])].filter(page => page >= 1 && page <= totalPages)
+                .sort((a, b) => a - b);
+
+            let previousPage = 0;
+
+            for (const page of pages) {
+                if (page - previousPage > 1) {
+                    const dots = document.createElement("span");
+                    dots.textContent = "…";
+                    pagination.append(dots);
+                }
+
+                addButton(page, page);
+                previousPage = page;
+            }
+
+            if (currentPage < totalPages) addButton("Next", currentPage + 1);
+        }
+
+        async function loadPapers(page = 1) {
+            const requestId = ++latestRequest;
+            results.textContent = "Loading papers…";
+            pagination.replaceChildren();
+
+            try {
+                const params = new URLSearchParams({ query: currentQuery, page });
+                const response = await fetch(`/papers?${params}`);
+
+                if (!response.ok) throw new Error("Could not load papers.");
+
+                const { papers, totalResults } = await response.json();
+                if (requestId !== latestRequest) return;
+
+                results.textContent = papers.length ? "" : "No papers found.";
+
+                for (const paper of papers) {
+                    const article = document.createElement("article");
+                    const title = document.createElement("h2");
+                    const link = document.createElement("a");
+                    const details = document.createElement("p");
+
+                    link.href = paper.link;
+                    link.textContent = paper.title;
+                    title.append(link);
+
+                    details.textContent = `${paper.authors} · ${paper.publicationYear}`;
+                    article.append(title, details);
+                    results.append(article);
+                }
+
+                renderPagination(page, Math.ceil(totalResults / pageSize));
+            } catch {
+                if (requestId === latestRequest) {
+                    results.textContent = "Could not load papers. Please try again.";
+                }
+            }
+        }
+
+        form.addEventListener("submit", event => {
+            event.preventDefault();
+            currentQuery = input.value.trim() || "psychoinformatics";
+            loadPapers(1);
+        });
+
+        loadPapers(1);
+    </script>
+</body>
+</html>
